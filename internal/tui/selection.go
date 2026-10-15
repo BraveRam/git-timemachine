@@ -110,7 +110,7 @@ func (m AppModel) paneAt(x, y int) paneSelection {
 }
 
 func (m AppModel) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
-	if m.search.IsActive() || m.showHelp {
+	if m.search.IsActive() || m.showHelp || m.reviewModal.active || m.loadingReview {
 		return m, nil
 	}
 	if msg.Button == tea.MouseButtonLeft && msg.Action == tea.MouseActionPress {

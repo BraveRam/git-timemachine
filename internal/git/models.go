@@ -21,6 +21,7 @@ type Ref struct {
 // FileStat contains insertion/deletion stats for a single file in a commit.
 type FileStat struct {
 	Path      string
+	OldPath   string
 	Additions int
 	Deletions int
 	Status    string // "A" Added, "M" Modified, "D" Deleted, "R" Renamed
@@ -41,11 +42,14 @@ const (
 type DiffLine struct {
 	Type    DiffLineType
 	Content string
+	NewLine int
+	OldLine int
 }
 
 // DiffData encapsulates stats and syntax-categorized lines for a commit diff.
 type DiffData struct {
 	Stats            []FileStat
+	AllStats         []FileStat
 	TotalAdditions   int
 	TotalDeletions   int
 	RawDiff          string
@@ -84,6 +88,9 @@ func (c *Commit) IsSigned() bool {
 // CommitGraph represents the entire loaded commit history.
 type CommitGraph struct {
 	RepoPath  string
+	FilePath  string
+	Query     string
+	FilePaths map[string]string
 	Commits   []*Commit          // Chronological order: 0 = oldest commit, len-1 = newest
 	CommitMap map[string]*Commit // Hash -> Commit
 	Tags      []Ref

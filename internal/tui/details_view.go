@@ -11,12 +11,13 @@ import (
 
 // DetailsViewModel renders the active commit metadata card.
 type DetailsViewModel struct {
-	width    int
-	height   int
-	commit   *git.Commit
-	diffData *git.DiffData
-	focused  bool
-	theme    Theme
+	width       int
+	height      int
+	commit      *git.Commit
+	diffData    *git.DiffData
+	focused     bool
+	theme       Theme
+	workingMode string
 }
 
 // NewDetailsViewModel creates a new DetailsViewModel.
@@ -55,6 +56,14 @@ func (d DetailsViewModel) View() string {
 	titleText := " Commit Inspector "
 	if d.focused {
 		titleText = " ● Commit Inspector "
+	}
+
+	if d.workingMode != "" {
+		summary := "No tracked file changes."
+		if d.diffData != nil {
+			summary = fmt.Sprintf("%d files • +%d -%d", len(d.diffData.Stats), d.diffData.TotalAdditions, d.diffData.TotalDeletions)
+		}
+		return renderPane(d.theme, d.focused, w, h, " Commit Inspector\n"+d.workingMode+"\n"+summary+"\nF: choose file • w: switch view • r: refresh")
 	}
 
 	if d.commit == nil {

@@ -32,6 +32,7 @@ var Speeds = []PlaybackSpeed{
 }
 
 type diffLoadedMsg struct {
+	key  string
 	hash string
 	data *git.DiffData
 	err  error
@@ -56,8 +57,20 @@ type AppModel struct {
 	speedIndex         int
 	themeIndex         int
 	showHelp           bool
+	helpOffset         int
 	selection          paneSelection
 	copyStatus         string
+	reviewModal        reviewModal
+	reviewMode         string
+	compareBase        string
+	selectedPath       string
+	fileStats          []git.FileStat
+	loadedDiffKey      string
+	refreshSerial      uint64
+	reviewGeneration   uint64
+	loadingReview      bool
+	jumpLine           int
+	editorLine         int
 
 	scrubber    ScrubberModel
 	treeView    TreeViewModel
@@ -105,6 +118,9 @@ func NewAppModel(graph *git.CommitGraph, initialTheme Theme) AppModel {
 		keys:           DefaultKeyMap(),
 	}
 
+	if len(graph.Commits) == 0 {
+		app.currentDiff = &git.DiffData{}
+	}
 	return app
 }
 
@@ -127,17 +143,17 @@ func (m AppModel) Init() tea.Cmd {
 }
 
 func (m AppModel) loadCurrentDiffCmd() tea.Cmd {
-	commit := m.currentCommit()
-	if commit == nil {
+	request := m.currentRequest()
+	if request.Commit == "" && request.Mode == "" {
 		return nil
 	}
-	hash := commit.Hash
+	key := m.diffKey()
 	reader := m.diffReader
-
 	return func() tea.Msg {
-		data, err := reader.GetCommitDiff(hash)
-		return diffLoadedMsg{hash: hash, data: data, err: err}
+		data, err := reader.GetDiff(request)
+		return diffLoadedMsg{hash: request.Commit, key: key, data: data, err: err}
 	}
+
 }
 
 func (m AppModel) scheduleTickCmd() tea.Cmd {
@@ -173,12 +189,92 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.updateLayoutDimensions()
 		return m, nil
 
+	case historyLoadedMsg:
+		if msg.generation != m.reviewGeneration {
+			return m, nil
+		}
+		m.loadingReview = false
+		if msg.err != nil {
+			m.copyStatus = msg.err.Error()
+			return m, nil
+		}
+		m.graph = msg.graph
+		m.currentIndex = max(0, len(m.graph.Commits)-1)
+		m.reviewMode = ""
+		m.selectedPath = msg.path
+		m.currentDiff = nil
+		m.fileStats = nil
+		m.loadedDiffKey = ""
+		m.jumpLine = msg.line
+		if msg.line > 0 {
+			m.focus = FocusDiff
+		}
+		if msg.hash != "" {
+			for i, c := range m.graph.Commits {
+				if c.Hash == msg.hash {
+					m.currentIndex = i
+					break
+				}
+			}
+		}
+		m.copyStatus = ""
+		if len(m.graph.Commits) == 0 {
+			m.currentDiff = &git.DiffData{}
+			m.copyStatus = "No commits matched. Press u for all history"
+		}
+		m.updateChildStates()
+		return m, m.loadCurrentDiffCmd()
+
+	case blameLoadedMsg:
+		if msg.generation != m.reviewGeneration {
+			return m, nil
+		}
+		m.loadingReview = false
+		if msg.err != nil {
+			m.copyStatus = msg.err.Error()
+			return m, nil
+		}
+		rows := make([]reviewChoice, 0, len(msg.rows))
+		for _, row := range msg.rows {
+			rows = append(rows, reviewChoice{label: fmt.Sprintf("%5d %s %s • %s", row.Line, row.Commit[:min(7, len(row.Commit))], row.Text, row.Author), path: row.Path, hash: row.Commit, line: row.OriginalLine})
+		}
+		m.copyStatus = ""
+		m.reviewModal = newReviewModal("blame", "Blame — select a line to jump to its originating commit", rows)
+		return m, m.reviewModal.input.Focus()
+
+	case editorDoneMsg:
+		if msg.err != nil {
+			m.copyStatus = "Editor: " + msg.err.Error()
+		} else {
+			m.copyStatus = "Returned from editor"
+		}
+		return m, nil
+
 	case diffLoadedMsg:
 		commit := m.currentCommit()
-		if commit != nil && commit.Hash == msg.hash {
+		matches := msg.key != "" && msg.key == m.diffKey()
+		if msg.key == "" && commit != nil {
+			matches = commit.Hash == msg.hash
+		}
+		if matches {
+			if msg.err != nil {
+				m.copyStatus = "Diff error: " + msg.err.Error()
+				return m, nil
+			}
 			m.currentDiff = msg.data
-			m.diffView.SetState(msg.data, m.currentTheme())
-			m.detailsView.SetState(commit, msg.data, m.currentTheme())
+			m.loadedDiffKey = m.diffKey()
+			m.fileStats = nil
+			if msg.data != nil {
+				m.fileStats = msg.data.AllStats
+				if m.fileStats == nil {
+					m.fileStats = msg.data.Stats
+				}
+			}
+			m.updateChildStates()
+			if m.jumpLine > 0 {
+				m.diffView.gotoLine(m.jumpLine)
+				m.jumpLine = 0
+			}
 		}
 		return m, nil
 
@@ -188,6 +284,7 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if total > 0 {
 				if m.currentIndex < total-1 {
 					m.currentIndex++
+					m.selectedPath = ""
 					m.updateChildStates()
 					cmds = append(cmds, m.loadCurrentDiffCmd())
 					cmds = append(cmds, m.scheduleTickCmd())
@@ -201,6 +298,27 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Batch(cmds...)
 
 	case tea.KeyMsg:
+		if msg.String() == "ctrl+c" {
+			return m, tea.Quit
+		}
+		if m.loadingReview {
+			switch msg.String() {
+			case "q":
+				return m, tea.Quit
+			case "esc":
+				m.reviewGeneration++
+				m.loadingReview = false
+				m.copyStatus = "Cancelled"
+			}
+			return m, nil
+		}
+		if m.reviewModal.active {
+			choice, cmd := m.reviewModal.update(msg)
+			if choice != nil {
+				cmd = m.handleReviewChoice(*choice)
+			}
+			return m, cmd
+		}
 		// 1. Search modal takes priority if active
 		if m.search.IsActive() {
 			selectedCommit, searchCmd := m.search.Update(msg)
@@ -209,6 +327,7 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			if selectedCommit != nil {
 				m.currentIndex = *selectedCommit
+				m.selectedPath = ""
 				m.updateChildStates()
 				cmds = append(cmds, m.loadCurrentDiffCmd())
 			}
@@ -217,6 +336,16 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// 2. Help modal dismissal
 		if m.showHelp {
+			switch msg.String() {
+			case "up", "k":
+				m.helpOffset = max(0, m.helpOffset-1)
+			case "down", "j":
+				m.helpOffset++
+			case "pgdown":
+				m.helpOffset += 10
+			case "pgup":
+				m.helpOffset = max(0, m.helpOffset-10)
+			}
 			if key.Matches(msg, m.keys.Help, m.keys.Esc, m.keys.Quit) {
 				m.showHelp = false
 			}
@@ -228,11 +357,24 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if msg.String() == "y" || msg.String() == "ctrl+y" {
 				return m, m.copySelection()
 			}
+			if msg.String() == "e" && m.selection.pane == paneDiff && m.currentDiff != nil {
+				start := m.diffView.viewport.YOffset + max(0, m.selection.anchor.y-3)
+				for i := start; i < len(m.currentDiff.HighlightedLines); i++ {
+					if line := m.currentDiff.HighlightedLines[i].NewLine; line > 0 {
+						m.editorLine = line
+						break
+					}
+				}
+			}
 			m.selection = paneSelection{}
 			m.copyStatus = ""
 			if key.Matches(msg, m.keys.Esc) {
 				return m, nil
 			}
+		}
+
+		if handled, cmd := m.workflowKey(msg); handled {
+			return m, cmd
 		}
 
 		// 3. Global shortcuts
@@ -349,12 +491,14 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Batch(cmds...)
 
 		case key.Matches(msg, m.keys.JumpFirst):
+			m.selectedPath = ""
 			m.currentIndex = 0
 			m.updateChildStates()
 			cmds = append(cmds, m.loadCurrentDiffCmd())
 			return m, tea.Batch(cmds...)
 
 		case key.Matches(msg, m.keys.JumpLast):
+			m.selectedPath = ""
 			if len(m.graph.Commits) > 0 {
 				m.currentIndex = len(m.graph.Commits) - 1
 			}
@@ -408,11 +552,31 @@ func (m *AppModel) stepIndex(delta int) {
 	if newIdx >= total {
 		newIdx = total - 1
 	}
+	if m.currentIndex != newIdx {
+		m.selectedPath = ""
+	}
 	m.currentIndex = newIdx
 	m.updateChildStates()
 }
 
 func (m *AppModel) updateChildStates() {
+	if m.loadedDiffKey != "" && m.loadedDiffKey != m.diffKey() {
+		m.currentDiff = nil
+		m.fileStats = nil
+	}
+	m.diffView.label = m.viewLabel()
+	m.detailsView.workingMode = ""
+	if m.reviewMode == "staged" || m.reviewMode == "unstaged" {
+		m.detailsView.workingMode = m.viewLabel()
+	}
+	if path := m.currentRequest().Path; path != "" {
+		m.diffView.label += " • " + path
+	}
+	query := m.graph.Query
+	if m.reviewMode != "" {
+		query = ""
+	}
+	m.diffView.SetQuery(query)
 	c := m.currentCommit()
 	theme := m.currentTheme()
 	speed := Speeds[m.speedIndex].Label
@@ -488,12 +652,12 @@ func (m AppModel) View() string {
 	}
 
 	// 3. Footer Bar
-	footerText := " [Space] Play • [←/→] Scrub • [J/K] Jump 10 • [Tab] Focus • [f] Fullscreen • [/] Search • [t] Theme • [Alt+arrows] Resize • [?] Help • [q] Quit"
+	footerText := " [F] Files • [n/p] File • [H] History • [d] Diff search • [a/c] Compare • [w] Working tree • [?] Help • [q] Quit"
 	if m.selection.pane != paneNone {
 		footerText = " Drag within pane • [y] Copy selection • [Esc] Clear • [Alt+arrows] Resize"
 	}
 	if m.copyStatus != "" {
-		footerText = " " + m.copyStatus + " • [y] Copy • [Esc] Clear"
+		footerText = " " + m.copyStatus + " • [?] Help"
 	}
 	footer := lipgloss.NewStyle().
 		Width(m.width).
@@ -503,6 +667,9 @@ func (m AppModel) View() string {
 	baseLayout := lipgloss.JoinVertical(lipgloss.Left, scrubberView, mainView, footer)
 
 	// Overlay Modals
+	if m.reviewModal.active {
+		return m.themedScreen(m.reviewModal.view(m.width, m.height, theme))
+	}
 	if m.search.IsActive() {
 		searchModal := m.search.View(m.width)
 		return m.themedScreen(lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, searchModal,
@@ -529,6 +696,12 @@ func (m AppModel) renderHelpModal() string {
 		Render("git-timemachine — Keyboard Shortcuts")
 
 	shortcuts := [][]string{
+		{"F / n / p", "Choose file / next file / previous file"},
+		{"H / u", "Follow selected file / return to all history"},
+		{"d / Ctrl+n,p", "Find changed text / next, previous hit"},
+		{"a / c", "Mark comparison start / compare to current"},
+		{"w / r", "Unstaged → staged → history / refresh"},
+		{"b / e", "Blame selected file / open working file in editor"},
 		{"← / h", "Scrub backward 1 commit"},
 		{"→ / l", "Scrub forward 1 commit"},
 		{"Shift+← / J", "Jump backward 10 commits"},
@@ -551,28 +724,16 @@ func (m AppModel) renderHelpModal() string {
 		{"q / Ctrl+C", "Quit cleanly"},
 	}
 
-	var tableLines []string
-	keyStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(theme.Accent)).Width(16)
-	descStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(theme.Foreground))
-
-	for _, s := range shortcuts {
-		line := fmt.Sprintf("%s %s", keyStyle.Render(s[0]), descStyle.Render(s[1]))
-		tableLines = append(tableLines, line)
+	w, h := min(92, max(1, m.width-4)), min(len(shortcuts)+4, max(1, m.height-2))
+	visible := max(1, h-4)
+	start := min(m.helpOffset, max(0, len(shortcuts)-visible))
+	lines := []string{title}
+	for _, row := range shortcuts[start:min(len(shortcuts), start+visible)] {
+		lines = append(lines, fmt.Sprintf("%-18s %s", row[0], row[1]))
 	}
+	lines = append(lines, "↑/↓ Scroll • ? / Esc Close")
+	return renderPane(theme, true, w, h, strings.Join(lines, "\n"))
 
-	footer := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(theme.Muted)).
-		Render("\nPress ? or Esc to close help.")
-
-	content := fmt.Sprintf("%s\n\n%s\n%s", title, strings.Join(tableLines, "\n"), footer)
-
-	return lipgloss.NewStyle().
-		Width(60).
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color(theme.BorderFocus)).
-		Background(lipgloss.Color(theme.Background)).
-		Padding(1, 2).
-		Render(content)
 }
 
 // Paint the entire canvas so light themes work in dark terminals and vice versa.

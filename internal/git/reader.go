@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"fmt"
 	"os/exec"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -17,11 +18,31 @@ const (
 
 // ReadHistory streams commits and refs from the git repository at repoPath.
 func ReadHistory(repoPath string) (*CommitGraph, error) {
+	return ReadFilteredHistory(repoPath, "", "")
+}
+
+// ReadFilteredHistory optionally follows one file from HEAD and searches changed lines.
+func ReadFilteredHistory(repoPath, file, query string) (*CommitGraph, error) {
 	// Use git's internal %x1f and %x1e escapes so the command line argument contains no null bytes.
 	format := "--pretty=format:%H%x1f%h%x1f%P%x1f%an%x1f%ae%x1f%at%x1f%s%x1f%B%x1f%G?%x1f%D%x1e"
 
-	cmd := exec.Command("git", "log", "--all", "--topo-order", format)
+	args := []string{"log", "--topo-order", format}
+	if file == "" {
+		args = append(args, "--all", "HEAD")
+	} else {
+		args = append(args, "--follow", "-M", "HEAD")
+	}
+	if query != "" {
+		args = append(args, "-G"+regexp.QuoteMeta(query))
+	}
+	args = append(args, "--")
+	if file != "" {
+		args = append(args, ":(literal)"+file)
+	}
+	cmd := exec.Command("git", args...)
 	cmd.Dir = repoPath
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
@@ -115,14 +136,18 @@ func ReadHistory(repoPath string) (*CommitGraph, error) {
 	}
 
 	if err := scanner.Err(); err != nil {
+		_ = cmd.Process.Kill()
 		_ = cmd.Wait()
 		return nil, fmt.Errorf("git log scanner error: %w", err)
 	}
 
 	if err := cmd.Wait(); err != nil {
-		// If repository has no commits yet
-		if len(topologicalCommits) == 0 {
+		// A repository with an unborn HEAD has no history. Other Git failures matter.
+		check := exec.Command("git", "rev-parse", "--verify", "HEAD")
+		check.Dir = repoPath
+		if check.Run() != nil && len(topologicalCommits) == 0 {
 			return &CommitGraph{
+				FilePath: file, Query: query, FilePaths: map[string]string{},
 				RepoPath:  repoPath,
 				Commits:   []*Commit{},
 				CommitMap: commitMap,
@@ -131,6 +156,7 @@ func ReadHistory(repoPath string) (*CommitGraph, error) {
 				MaxLanes:  1,
 			}, nil
 		}
+		return nil, fmt.Errorf("git log failed: %w: %s", err, strings.TrimSpace(stderr.String()))
 	}
 
 	// Compute Unicode branch lanes based on topological order
@@ -145,7 +171,16 @@ func ReadHistory(repoPath string) (*CommitGraph, error) {
 		chronologicalCommits[i] = c
 	}
 
+	paths := map[string]string{}
+	if file != "" {
+		var err error
+		paths, err = historicalPaths(repoPath, file)
+		if err != nil {
+			return nil, err
+		}
+	}
 	return &CommitGraph{
+		FilePath: file, Query: query, FilePaths: paths,
 		RepoPath:  repoPath,
 		Commits:   chronologicalCommits,
 		CommitMap: commitMap,

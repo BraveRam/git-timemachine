@@ -27,7 +27,11 @@
   - **Fullscreen Diff**: Toggle full-screen code inspection with `f` or `Enter`.
 - **Zero-Lag Engine**: Piped streaming Git log reader and LRU diff caching capable of handling repositories with 10,000+ commits at 60fps.
 - **Aesthetic Themes**: Cycle through 14 palettes (3 light and 11 dark) with `t`.
-- **Instant Search**: Real-time substring commit filtering across subjects, authors, and hashes with `/`.
+- **File Investigation**: Choose a changed file with `F`, cycle files with `n` / `p`, and follow rename-aware file history with `H`.
+- **Changed-Text Search**: Press `d` to find commits that added or removed literal text, with highlighted diff matches.
+- **Compare and Review**: Mark two commits with `a` / `c`, inspect staged and unstaged changes with `w`, and refresh with `r`.
+- **Blame and Editor**: Trace a line to its originating commit with `b`, or open the working file in your editor with `e`.
+- **Commit Search**: Real-time substring commit filtering across subjects, authors, and hashes with `/`.
 
 ---
 
@@ -73,10 +77,71 @@ gtm -t midnight
 
 ---
 
+## Investigate a Change
+
+```bash
+# Follow a file from HEAD through renames (relative to the repository path)
+gtm --file src/auth.ts
+
+# Find commits that added or removed this literal, case-sensitive text
+gtm --search 'createSession'
+
+# Combine file history and changed-text search
+gtm --file src/auth.ts --search 'createSession'
+
+# Compare two commit-ish revisions; use real refs from your repository
+gtm --compare main..feature
+
+# Inspect tracked unstaged changes or staged changes
+gtm --working
+gtm --staged
+```
+
+Inside the app, press `F`, type part of a filename, and press Enter. The diff
+shows only that file. `n` / `p` cycle through all changed files, including files
+beyond the first four. Pick “All changed files” in `F` to restore the full patch.
+
+Press `H` to follow that file from the current branch's HEAD, including rename
+history. Press `d`, type text, and Enter to keep commits that added or removed
+that text. Matching lines are highlighted; `Ctrl+n` / `Ctrl+p` jump between hits.
+This searches changed lines, not commit messages or unchanged file contents.
+`/` still searches commit messages/authors/hashes. Press `u` to clear filters.
+
+For comparisons, select a commit and press `a`, select the other commit, then
+press `c`. The diff shows the net change **from the marked commit to the selected
+commit**. `Esc` returns to ordinary commit diffs (exit fullscreen first if active).
+
+Press `w` to cycle through unstaged, staged, and history views. `r` refreshes
+changes made outside the app. These views do not stage, discard, or commit
+anything. Untracked files are excluded; staged new files are included.
+
+Choose a file and press `b` to browse blame at the selected commit. Select a line
+and Enter to jump to the originating commit and historical filename. This works
+for committed files; deleted files may not exist at the selected revision.
+
+Press `e` to open the selected file in the **current working tree**, near the
+first visible diff line (or the selected diff text). This uses `$VISUAL`, then
+`$EDITOR`, then `vi`. For VS Code, set `EDITOR='code --wait'`; for terminal editors,
+use e.g. `EDITOR=nvim`. Historical line numbers may differ from today's file, and
+files missing from the working tree cannot be opened. No checkout is performed.
+
+---
+
 ## Keyboard Shortcuts
 
 | Keybinding | Action |
 |:---|:---|
+| `F` | Search the complete changed-file list and select a file |
+| `n` / `p` | Inspect next / previous changed file |
+| `H` | Follow selected file through history, including renames |
+| `d` | Find literal text added or removed across commit history |
+| `Ctrl + n` / `Ctrl + p` | Jump to next / previous highlighted diff match |
+| `u` | Clear file/text filters and return to all history |
+| `a` / `c` | Mark comparison start / compare it to selected commit |
+| `w` | Cycle unstaged → staged → commit view |
+| `r` | Refresh the current diff |
+| `b` | Show selected file's blame; Enter jumps to a line's origin |
+| `e` | Open selected working file in `$VISUAL` / `$EDITOR` (default: `vi`) |
 | `←` / `h` | Scrub 1 commit backward in time |
 | `→` / `l` | Scrub 1 commit forward in time |
 | `Shift + ←` / `J` | Jump 10 commits backward |

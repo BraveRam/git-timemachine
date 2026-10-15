@@ -19,6 +19,10 @@ type DiffViewModel struct {
 	focused      bool
 	isFullScreen bool
 	theme        Theme
+	label        string
+	query        string
+	matchLines   []int
+	matchIndex   int
 }
 
 // NewDiffViewModel creates a new DiffViewModel.
@@ -52,6 +56,10 @@ func (dv *DiffViewModel) SetFullScreen(fs bool) {
 
 // SetState updates diff data and regenerates styled diff content.
 func (dv *DiffViewModel) SetState(diff *git.DiffData, theme Theme) {
+	if dv.diffData != diff {
+		dv.viewport.GotoTop()
+		dv.matchIndex = 0
+	}
 	dv.diffData = diff
 	dv.theme = theme
 	dv.updateContent()
@@ -66,6 +74,7 @@ func (dv *DiffViewModel) Update(msg tea.Msg) (DiffViewModel, tea.Cmd) {
 
 func (dv *DiffViewModel) updateContent() {
 	if dv.diffData == nil || len(dv.diffData.HighlightedLines) == 0 {
+		dv.matchLines = nil
 		dv.viewport.SetContent(
 			lipgloss.NewStyle().
 				Foreground(lipgloss.Color(dv.theme.Muted)).
@@ -74,8 +83,9 @@ func (dv *DiffViewModel) updateContent() {
 		return
 	}
 
+	dv.matchLines = nil
 	var styledLines []string
-	for _, l := range dv.diffData.HighlightedLines {
+	for index, l := range dv.diffData.HighlightedLines {
 		switch l.Type {
 		case git.DiffLineAddition:
 			styled := lipgloss.NewStyle().
@@ -103,6 +113,10 @@ func (dv *DiffViewModel) updateContent() {
 				Foreground(lipgloss.Color(dv.theme.Foreground)).
 				Render(l.Content)
 			styledLines = append(styledLines, styled)
+		}
+		if dv.query != "" && strings.Contains(l.Content, dv.query) {
+			dv.matchLines = append(dv.matchLines, index)
+			styledLines[len(styledLines)-1] = lipgloss.NewStyle().Background(lipgloss.Color(dv.theme.Warning)).Foreground(lipgloss.Color(dv.theme.Background)).Render(l.Content)
 		}
 	}
 
@@ -132,43 +146,15 @@ func (dv DiffViewModel) View() string {
 		)
 	}
 
-	// Files bar
-	var filePills []string
-	for i, f := range dv.diffData.Stats {
-		if i >= 4 {
-			filePills = append(filePills, lipgloss.NewStyle().Foreground(lipgloss.Color(dv.theme.Muted)).Render(fmt.Sprintf("+%d more files", len(dv.diffData.Stats)-4)))
-			break
-		}
-
-		statusColor := dv.theme.Foreground
-		if f.Status == "A" {
-			statusColor = dv.theme.Success
-		} else if f.Status == "D" {
-			statusColor = dv.theme.Danger
-		} else if f.Status == "M" {
-			statusColor = dv.theme.Warning
-		}
-
-		statusBadge := lipgloss.NewStyle().
-			Bold(true).
-			Foreground(lipgloss.Color(statusColor)).
-			Render(fmt.Sprintf("[%s]", f.Status))
-
-		p := f.Path
-		if len(p) > 20 {
-			p = "..." + p[len(p)-17:]
-		}
-
-		addBadge := lipgloss.NewStyle().Foreground(lipgloss.Color(dv.theme.DiffAddFg)).Render(fmt.Sprintf("+%d", f.Additions))
-		delBadge := lipgloss.NewStyle().Foreground(lipgloss.Color(dv.theme.DiffDelFg)).Render(fmt.Sprintf("-%d", f.Deletions))
-
-		pill := fmt.Sprintf("%s %s (%s %s)", statusBadge, p, addBadge, delBadge)
-		filePills = append(filePills, pill)
-	}
-
-	filesBar := strings.Join(filePills, "  ")
+	filesBar := dv.label
 	if filesBar == "" {
-		filesBar = lipgloss.NewStyle().Foreground(lipgloss.Color(dv.theme.Muted)).Render("Empty commit (no file changes).")
+		filesBar = "All changed files"
+	}
+	if len(dv.diffData.Stats) == 0 {
+		filesBar += " • no changes"
+	}
+	if dv.query != "" {
+		filesBar += fmt.Sprintf(" • %d hits", len(dv.matchLines))
 	}
 
 	scrollPct := fmt.Sprintf("%3.f%%", dv.viewport.ScrollPercent()*100)
@@ -185,4 +171,31 @@ func (dv DiffViewModel) View() string {
 
 	content := fmt.Sprintf("%s\n%s\n%s", header, subHeader, dv.viewport.View())
 	return renderPane(dv.theme, dv.focused || dv.isFullScreen, w, h, content)
+}
+
+func (dv *DiffViewModel) SetQuery(query string) {
+	if dv.query == query {
+		return
+	}
+	dv.query = query
+	dv.matchIndex = 0
+	dv.updateContent()
+}
+func (dv *DiffViewModel) nextMatch(delta int) {
+	if len(dv.matchLines) == 0 {
+		return
+	}
+	dv.matchIndex = (dv.matchIndex + delta + len(dv.matchLines)) % len(dv.matchLines)
+	dv.viewport.SetYOffset(dv.matchLines[dv.matchIndex])
+}
+func (dv *DiffViewModel) gotoLine(line int) {
+	if dv.diffData == nil {
+		return
+	}
+	for i, row := range dv.diffData.HighlightedLines {
+		if row.NewLine >= line {
+			dv.viewport.SetYOffset(i)
+			return
+		}
+	}
 }
