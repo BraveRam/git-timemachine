@@ -1,14 +1,5 @@
 <div align="center">
 
-```
-       _ _          _   _                            _     _            
-  __ _(_) |_       | |_(_)_ __ ___   ___ _ __   __ _|  ___| |__  _ __   
- / _` | | __|______| __| | '_ ` _ \ / _ \ '_ \ / _` | / __| '_ \| '_ \  
-| (_| | | ||_______| |_| | | | | | |  __/ | | | (_| || (__| | | | | | | 
- \__, |_|\__|       \__|_|_| |_| |_|\___|_| |_|\__,_(_)___|_| |_|_| |_| 
- |___/                                                                  
-```
-
 # `git-timemachine`
 
 **The Interactive Git History Scrubber & Visual Timelapse TUI**
@@ -104,42 +95,6 @@ gtm -t tokyonight
 | `?` | Toggle Help cheatsheet overlay |
 | `Esc` | Close search / Exit fullscreen / Dismiss help |
 | `q` / `Ctrl+C` | Exit cleanly |
-
----
-
-## Architecture
-
-```text
-git-timemachine/
-├── cmd/
-│   ├── gtm/
-│   │   └── main.go              # Entrypoint producing `gtm` binary
-│   └── git-timemachine/
-│       └── main.go              # Entrypoint producing `git-timemachine` binary
-├── internal/
-│   ├── cli/
-│   │   └── cli.go               # Shared CLI flags, repo path resolution, Bubble Tea runner
-│   ├── git/
-│   │   ├── models.go            # Commit, Branch, Tag, FileDiff, CommitGraph structs
-│   │   ├── reader.go            # High-throughput streaming git log parser (<50ms for 10k+ commits)
-│   │   ├── graph.go             # Unicode branch lane routing algorithm
-│   │   ├── diff.go              # LRU-cached diff extractor and syntax chunk classifier
-│   │   └── git_test.go          # Unit tests for git engine and parsing
-│   └── tui/
-│       ├── app.go               # Root BubbleTea model, key router, tick manager, resize handler
-│       ├── scrubber.go          # Horizontal timeline slider component
-│       ├── tree_view.go         # Unicode branch graph renderer with dynamic lane coloring
-│       ├── details_view.go      # Active commit card (author, hash, date, GPG badge, stats)
-│       ├── diff_view.go         # Scrollable syntax diff viewport and changed files list
-│       ├── search.go            # Live commit search input modal
-│       ├── theme.go             # Catppuccin Mocha, Tokyo Night, Nord, Monokai Pro palettes
-│       ├── keys.go              # Keymap declarations and help bindings
-│       └── tui_test.go          # Unit tests for TUI models and view rendering
-├── demo.tape                    # Charm VHS script to record demo GIF
-├── go.mod
-├── go.sum
-└── README.md
-```
 
 ---
 
