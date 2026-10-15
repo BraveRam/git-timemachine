@@ -6,6 +6,7 @@ import (
 
 	"github.com/BraveRam/git-timemachine/internal/git"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 )
 
 // DetailsViewModel renders the active commit metadata card.
@@ -149,26 +150,23 @@ func (d DetailsViewModel) View() string {
 	subjStyle := lipgloss.NewStyle().
 		Bold(true).
 		Foreground(lipgloss.Color(d.theme.Cursor))
-	lines = append(lines, subjStyle.Render(c.Subject))
-
-	// Truncate message body to fit pane
+	// Wrap the message within the pane instead of silently cutting off words.
+	messageLines := strings.Split(ansi.Wrap(subjStyle.Render(c.Subject), max(1, w-2), ""), "\n")
 	body := strings.TrimSpace(c.Body)
 	if body != "" && body != c.Subject {
-		bodyLines := strings.Split(body, "\n")
-		// skip first line if it's identical to subject
-		if len(bodyLines) > 0 && strings.TrimSpace(bodyLines[0]) == c.Subject {
-			bodyLines = bodyLines[1:]
+		body = strings.TrimSpace(strings.TrimPrefix(body, c.Subject))
+		if body != "" {
+			messageLines = append(messageLines, "")
+			messageLines = append(messageLines, strings.Split(ansi.Wrap(body, max(1, w-2), ""), "\n")...)
 		}
-		maxBodyLines := h - len(lines) - 3
-		if maxBodyLines > 0 {
-			for i, bl := range bodyLines {
-				if i >= maxBodyLines {
-					lines = append(lines, lipgloss.NewStyle().Foreground(lipgloss.Color(d.theme.Muted)).Render("... [more message lines]"))
-					break
-				}
-				lines = append(lines, lipgloss.NewStyle().Foreground(lipgloss.Color(d.theme.Foreground)).Render(bl))
-			}
-		}
+	}
+	available := max(0, h-3-len(lines)) // borders and title
+	if len(messageLines) > available && available > 0 {
+		messageLines = messageLines[:available]
+		messageLines[available-1] = ansi.Truncate(messageLines[available-1], max(0, w-3), "") + "…"
+	}
+	if available > 0 {
+		lines = append(lines, messageLines...)
 	}
 
 	header := lipgloss.NewStyle().

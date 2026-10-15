@@ -86,6 +86,12 @@ gtm -t tokyonight
 | `[` / `-` | Decrease playback speed (0.5x, 1x, 2x, 5x) |
 | `]` / `+` | Increase playback speed |
 | `Tab` | Switch active pane focus (Tree <-> Diff View) |
+| `Alt + ←/→` or `<` / `>` | Shrink / grow tree pane |
+| `Alt + ↑/↓` or `{` / `}` | Shrink / grow commit inspector; diff gets remaining space |
+| `0` | Reset pane sizes |
+| Mouse drag | Select text within one pane |
+| `y` / `Ctrl + y` | Copy selected pane text to the system clipboard |
+| `Esc` | Clear text selection |
 | `f` / `Enter` | Toggle fullscreen diff viewer |
 | `↑` / `k` / `↓` / `j` | Scroll active tree or diff viewport |
 | `/` | Search commits by message, author, or hash |
@@ -95,6 +101,13 @@ gtm -t tokyonight
 | `q` / `Ctrl+C` | Exit cleanly |
 
 ---
+
+
+Text selection stays inside the pane where the drag begins, even when the pointer
+crosses another pane. Press `y` to copy. On Linux, clipboard copying uses
+`wl-copy`/`wl-paste` (Wayland) or `xclip`/`xsel` (X11). Most terminals let you
+hold Shift while dragging to use their native selection instead.
+
 
 ## Themes Included
 

@@ -51,9 +51,13 @@ type AppModel struct {
 	isFullScreenDiff   bool
 	isPlaying          bool
 	playbackGeneration uint64
+	treePercent        int
+	detailsPercent     int
 	speedIndex         int
 	themeIndex         int
 	showHelp           bool
+	selection          paneSelection
+	copyStatus         string
 
 	scrubber    ScrubberModel
 	treeView    TreeViewModel
@@ -85,18 +89,20 @@ func NewAppModel(graph *git.CommitGraph, initialTheme Theme) AppModel {
 	}
 
 	app := AppModel{
-		graph:        graph,
-		diffReader:   diffReader,
-		currentIndex: initialIdx,
-		focus:        FocusTree,
-		speedIndex:   1, // 1x
-		themeIndex:   themeIdx,
-		scrubber:     NewScrubberModel(theme),
-		treeView:     NewTreeViewModel(theme),
-		detailsView:  NewDetailsViewModel(theme),
-		diffView:     NewDiffViewModel(theme),
-		search:       NewSearchModel(theme),
-		keys:         DefaultKeyMap(),
+		graph:          graph,
+		diffReader:     diffReader,
+		currentIndex:   initialIdx,
+		focus:          FocusTree,
+		treePercent:    45,
+		detailsPercent: 35,
+		speedIndex:     1, // 1x
+		themeIndex:     themeIdx,
+		scrubber:       NewScrubberModel(theme),
+		treeView:       NewTreeViewModel(theme),
+		detailsView:    NewDetailsViewModel(theme),
+		diffView:       NewDiffViewModel(theme),
+		search:         NewSearchModel(theme),
+		keys:           DefaultKeyMap(),
 	}
 
 	return app
@@ -149,7 +155,19 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
+	case tea.MouseMsg:
+		return m.handleMouse(msg)
+
+	case copiedMsg:
+		if msg.err != nil {
+			m.copyStatus = "Copy failed: " + msg.err.Error()
+		} else {
+			m.copyStatus = "Copied selection"
+		}
+		return m, nil
+
 	case tea.WindowSizeMsg:
+		m.selection = paneSelection{}
 		m.width = msg.Width
 		m.height = msg.Height
 		m.updateLayoutDimensions()
@@ -205,6 +223,18 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 
+		// Copy only the selected pane text; Esc clears the highlight.
+		if m.selection.pane != paneNone {
+			if msg.String() == "y" || msg.String() == "ctrl+y" {
+				return m, m.copySelection()
+			}
+			m.selection = paneSelection{}
+			m.copyStatus = ""
+			if key.Matches(msg, m.keys.Esc) {
+				return m, nil
+			}
+		}
+
 		// 3. Global shortcuts
 		switch {
 		case key.Matches(msg, m.keys.Quit):
@@ -250,6 +280,27 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.speedIndex++
 				m.updateChildStates()
 			}
+			return m, nil
+
+		case key.Matches(msg, m.keys.TreeNarrower):
+			m.treePercent = max(20, m.treePercent-5)
+			m.updateLayoutDimensions()
+			return m, nil
+		case key.Matches(msg, m.keys.TreeWider):
+			m.treePercent = min(80, m.treePercent+5)
+			m.updateLayoutDimensions()
+			return m, nil
+		case key.Matches(msg, m.keys.InspectorShorter):
+			m.detailsPercent = max(20, m.detailsPercent-5)
+			m.updateLayoutDimensions()
+			return m, nil
+		case key.Matches(msg, m.keys.InspectorTaller):
+			m.detailsPercent = min(80, m.detailsPercent+5)
+			m.updateLayoutDimensions()
+			return m, nil
+		case key.Matches(msg, m.keys.ResetLayout):
+			m.treePercent, m.detailsPercent = 45, 35
+			m.updateLayoutDimensions()
 			return m, nil
 
 		case key.Matches(msg, m.keys.ToggleDiffFull):
@@ -392,22 +443,15 @@ func (m *AppModel) updateLayoutDimensions() {
 	if m.isFullScreenDiff {
 		m.diffView.SetSize(w, mainHeight)
 	} else {
-		// Split pane: Left 45%, Right 55%
-		leftWidth := w * 45 / 100
+		// Keep the chosen proportions across terminal resizes, with usable minima.
+		minPaneWidth := min(25, w/2)
+		leftWidth := max(minPaneWidth, min(w*m.treePercent/100, w-minPaneWidth))
 		rightWidth := w - leftWidth
-		if leftWidth < 25 {
-			leftWidth = min(25, w)
-			rightWidth = w - leftWidth
-		}
-
 		m.treeView.SetSize(leftWidth, mainHeight)
 
-		// Right side split: Details (top 35%), Diff (bottom 65%)
-		detailsHeight := mainHeight * 35 / 100
-		if detailsHeight < 7 {
-			detailsHeight = 7
-		}
-		detailsHeight = min(detailsHeight, mainHeight)
+		minDetailsHeight := min(7, mainHeight/2)
+		minDiffHeight := min(5, mainHeight/2)
+		detailsHeight := max(minDetailsHeight, min(mainHeight*m.detailsPercent/100, mainHeight-minDiffHeight))
 		diffHeight := mainHeight - detailsHeight
 
 		m.detailsView.SetSize(rightWidth, detailsHeight)
@@ -433,17 +477,23 @@ func (m AppModel) View() string {
 	// 2. Main Middle Area
 	var mainView string
 	if m.isFullScreenDiff {
-		mainView = m.diffView.View()
+		mainView = m.selection.view(paneDiff, m.diffView.View())
 	} else {
-		left := m.treeView.View()
-		rightTop := m.detailsView.View()
-		rightBottom := m.diffView.View()
+		left := m.selection.view(paneTree, m.treeView.View())
+		rightTop := m.selection.view(paneInspector, m.detailsView.View())
+		rightBottom := m.selection.view(paneDiff, m.diffView.View())
 		rightCol := lipgloss.JoinVertical(lipgloss.Left, rightTop, rightBottom)
 		mainView = lipgloss.JoinHorizontal(lipgloss.Top, left, rightCol)
 	}
 
 	// 3. Footer Bar
-	footerText := " [Space] Play • [←/→] Scrub • [J/K] Jump 10 • [Tab] Focus • [f] Fullscreen • [/] Search • [t] Theme • [?] Help • [q] Quit"
+	footerText := " [Space] Play • [←/→] Scrub • [J/K] Jump 10 • [Tab] Focus • [f] Fullscreen • [/] Search • [t] Theme • [Alt+arrows] Resize • [?] Help • [q] Quit"
+	if m.selection.pane != paneNone {
+		footerText = " Drag within pane • [y] Copy selection • [Esc] Clear • [Alt+arrows] Resize"
+	}
+	if m.copyStatus != "" {
+		footerText = " " + m.copyStatus + " • [y] Copy • [Esc] Clear"
+	}
 	footer := lipgloss.NewStyle().
 		Width(m.width).
 		Foreground(lipgloss.Color(theme.Muted)).
@@ -489,6 +539,11 @@ func (m AppModel) renderHelpModal() string {
 		{"] / +", "Increase playback speed"},
 		{"Tab", "Toggle focus between Tree and Diff view"},
 		{"f / Enter", "Toggle fullscreen live diff view"},
+		{"Alt+←/→ or </>", "Resize tree / right column"},
+		{"Alt+↑/↓ or {/}", "Resize inspector / diff"},
+		{"0", "Reset pane sizes"},
+		{"Mouse drag", "Select text within one pane"},
+		{"y / Ctrl+y", "Copy selection; Esc clears it"},
 		{"/", "Search & filter commits by message, author, hash"},
 		{"t", "Cycle color theme (Catppuccin, Tokyo Night, Nord, Monokai)"},
 		{"?", "Toggle this help modal"},

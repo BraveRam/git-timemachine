@@ -6,30 +6,40 @@ import (
 
 // KeyMap defines the keybindings for git-timemachine.
 type KeyMap struct {
-	ScrubLeft      key.Binding
-	ScrubRight     key.Binding
-	JumpBack10     key.Binding
-	JumpForward10  key.Binding
-	JumpFirst      key.Binding
-	JumpLast       key.Binding
-	TogglePlay     key.Binding
-	SpeedDown      key.Binding
-	SpeedUp        key.Binding
-	Tab            key.Binding
-	ShiftTab       key.Binding
-	ToggleDiffFull key.Binding
-	Search         key.Binding
-	Theme          key.Binding
-	Help           key.Binding
-	Quit           key.Binding
-	Up             key.Binding
-	Down           key.Binding
-	Esc            key.Binding
+	TreeNarrower     key.Binding
+	TreeWider        key.Binding
+	InspectorShorter key.Binding
+	InspectorTaller  key.Binding
+	ResetLayout      key.Binding
+	ScrubLeft        key.Binding
+	ScrubRight       key.Binding
+	JumpBack10       key.Binding
+	JumpForward10    key.Binding
+	JumpFirst        key.Binding
+	JumpLast         key.Binding
+	TogglePlay       key.Binding
+	SpeedDown        key.Binding
+	SpeedUp          key.Binding
+	Tab              key.Binding
+	ShiftTab         key.Binding
+	ToggleDiffFull   key.Binding
+	Search           key.Binding
+	Theme            key.Binding
+	Help             key.Binding
+	Quit             key.Binding
+	Up               key.Binding
+	Down             key.Binding
+	Esc              key.Binding
 }
 
 // DefaultKeyMap returns the default keybindings for the application.
 func DefaultKeyMap() KeyMap {
 	return KeyMap{
+		TreeNarrower:     key.NewBinding(key.WithKeys("alt+left", "<")),
+		TreeWider:        key.NewBinding(key.WithKeys("alt+right", ">")),
+		InspectorShorter: key.NewBinding(key.WithKeys("alt+up", "{")),
+		InspectorTaller:  key.NewBinding(key.WithKeys("alt+down", "}")),
+		ResetLayout:      key.NewBinding(key.WithKeys("0")),
 		ScrubLeft: key.NewBinding(
 			key.WithKeys("left", "h"),
 			key.WithHelp("←/h", "scrub backward"),

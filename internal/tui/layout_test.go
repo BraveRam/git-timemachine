@@ -10,12 +10,30 @@ import (
 	"github.com/BraveRam/git-timemachine/internal/git"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 )
 
 func layoutFixture() (*git.CommitGraph, *git.DiffData) {
 	c := &git.Commit{Hash: strings.Repeat("a", 40), ShortHash: "aaaaaaa", AuthorName: "Alice Smith", AuthorEmail: "alice@example.com", AuthorDate: time.Now().Add(-10 * time.Minute), Subject: strings.Repeat("界 commit ", 15), Body: strings.Repeat("Long body line\n", 30), Node: git.GraphNode{Prefix: "● "}}
 	d := &git.DiffData{Stats: []git.FileStat{{Path: strings.Repeat("long/path/", 8), Status: "M", Additions: 4}}, HighlightedLines: []git.DiffLine{{Content: strings.Repeat("界", 200)}}}
 	return &git.CommitGraph{Commits: []*git.Commit{c}}, d
+}
+
+func TestInspectorWrapsLongSubject(t *testing.T) {
+	d := NewDetailsViewModel(ThemeNord)
+	d.SetSize(60, 14)
+	subject := "style(ui): remove background color and borders from landing page cards and footer"
+	d.SetState(&git.Commit{Subject: subject}, &git.DiffData{}, ThemeNord)
+	view := ansi.Strip(d.View())
+	if !strings.Contains(view, "footer") {
+		t.Fatalf("subject ending was lost instead of wrapped:\n%s", view)
+	}
+	assertFits(t, "inspector", view, 60, 14)
+	d.SetSize(60, 10)
+	d.SetState(&git.Commit{Subject: strings.Repeat(subject, 10)}, &git.DiffData{}, ThemeNord)
+	if !strings.Contains(d.View(), "…") {
+		t.Fatal("message hidden by pane height needs a visible truncation indicator")
+	}
 }
 
 func assertFits(t *testing.T, name, view string, width, height int) {
