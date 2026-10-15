@@ -7,6 +7,7 @@ import (
 
 	"github.com/BraveRam/git-timemachine/internal/git"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 )
 
 // ScrubberModel handles rendering of the horizontal timeline bar and metadata.
@@ -46,9 +47,7 @@ func (s *ScrubberModel) SetState(idx, total int, commit *git.Commit, isPlaying b
 // View renders the horizontal timeline scrubber.
 func (s ScrubberModel) View() string {
 	if s.totalCommits == 0 {
-		return lipgloss.NewStyle().
-			Foreground(lipgloss.Color(s.theme.Muted)).
-			Render("No commits found in repository.")
+		return renderPane(s.theme, true, s.width, 5, "No commits found in repository.")
 	}
 
 	w := s.width
@@ -94,7 +93,7 @@ func (s ScrubberModel) View() string {
 
 	topRowLeft := fmt.Sprintf("%s  %s", titleStyle, counterStyle)
 	topRowRight := fmt.Sprintf("%s  %s", playBadge, themeBadge)
-	topSpace := w - lipgloss.Width(topRowLeft) - lipgloss.Width(topRowRight)
+	topSpace := w - 4 - lipgloss.Width(topRowLeft) - lipgloss.Width(topRowRight)
 	if topSpace < 1 {
 		topSpace = 1
 	}
@@ -102,9 +101,9 @@ func (s ScrubberModel) View() string {
 
 	// 2. Timeline slider track
 	// [◀ ───●─────────────── ▶]
-	sliderInnerWidth := w - 8 // account for margins and buttons
-	if sliderInnerWidth < 10 {
-		sliderInnerWidth = 10
+	sliderInnerWidth := w - 10 // account for margins and buttons
+	if sliderInnerWidth < 1 {
+		sliderInnerWidth = 1
 	}
 
 	needlePos := 0
@@ -152,10 +151,8 @@ func (s ScrubberModel) View() string {
 			Render(relTime)
 
 		subject := s.currentCommit.Subject
-		maxSubLen := w - lipgloss.Width(hashStyle) - lipgloss.Width(authorStyle) - lipgloss.Width(timeStyle) - 10
-		if maxSubLen > 0 && len(subject) > maxSubLen {
-			subject = subject[:maxSubLen-3] + "..."
-		}
+		maxSubLen := w - 4 - lipgloss.Width(hashStyle) - lipgloss.Width(authorStyle) - lipgloss.Width(timeStyle) - 7
+		subject = ansi.Truncate(subject, max(0, maxSubLen), "…")
 		subjStyle := lipgloss.NewStyle().
 			Foreground(lipgloss.Color(s.theme.Foreground)).
 			Render(subject)
@@ -163,14 +160,13 @@ func (s ScrubberModel) View() string {
 		infoRow = fmt.Sprintf("%s %s • %s • %s", hashStyle, subjStyle, authorStyle, timeStyle)
 	}
 
-	container := lipgloss.NewStyle().
-		Width(w).
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color(s.theme.BorderFocus)).
-		Padding(0, 1)
-
 	content := fmt.Sprintf("%s\n%s\n%s", topRow, sliderBar, infoRow)
-	return container.Render(content)
+	// Two border cells and two padding cells belong to the assigned width.
+	if w < 5 {
+		return renderPane(s.theme, true, w, 5, content)
+	}
+	content = fitContent(content, w-4, 3)
+	return s.theme.BorderStyle(true).Width(w-2).Height(3).Padding(0, 1).Render(content)
 }
 
 func relativeTime(t time.Time) string {

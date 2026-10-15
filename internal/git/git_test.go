@@ -110,3 +110,27 @@ func TestCommitIsSigned(t *testing.T) {
 		t.Errorf("expected cNone to be unsigned")
 	}
 }
+
+func TestBuildGraphRoutesConvergesMergedLanes(t *testing.T) {
+	for _, reverseSiblings := range []bool{false, true} {
+		main := &Commit{Hash: "main", Parents: []string{"base"}}
+		feature := &Commit{Hash: "feature", Parents: []string{"base"}}
+		commits := []*Commit{
+			{Hash: "merge", Parents: []string{"main", "feature"}},
+			feature, main,
+			{Hash: "base", Parents: []string{"root"}},
+			{Hash: "root"},
+		}
+		if reverseSiblings {
+			commits[1], commits[2] = commits[2], commits[1]
+		}
+		if lanes := BuildGraphRoutes(commits); lanes != 2 {
+			t.Fatalf("expected two branch lanes, got %d", lanes)
+		}
+		for _, c := range commits[3:] {
+			if c.Node.Prefix != "● " || c.Node.Lane != 0 {
+				t.Errorf("reverseSiblings=%v: %s retained a merged lane: %+v", reverseSiblings, c.Hash, c.Node)
+			}
+		}
+	}
+}

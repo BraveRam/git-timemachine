@@ -6,6 +6,7 @@ import (
 
 	"github.com/BraveRam/git-timemachine/internal/git"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 )
 
 // TreeViewModel manages rendering the Unicode commit history graph.
@@ -52,7 +53,7 @@ func (t *TreeViewModel) ensureVisible() {
 		return
 	}
 
-	visibleRows := t.height - 2 // account for borders
+	visibleRows := max(0, t.height-3) // account for borders and title
 
 	// Keep active commit roughly in middle of visible rows
 	mid := visibleRows / 2
@@ -76,11 +77,8 @@ func (t *TreeViewModel) ensureVisible() {
 func (t TreeViewModel) View() string {
 	w := t.width
 	h := t.height
-	if w <= 0 {
-		w = 40
-	}
-	if h <= 0 {
-		h = 20
+	if w <= 0 || h <= 0 {
+		return ""
 	}
 
 	titleText := " Commit Tree "
@@ -88,27 +86,17 @@ func (t TreeViewModel) View() string {
 		titleText = " ● Commit Tree "
 	}
 
-	borderStyle := t.theme.BorderStyle(t.focused).
-		Width(w - 2).
-		Height(h - 2)
-
 	if len(t.commits) == 0 {
-		return borderStyle.Render(
+		return renderPane(t.theme, t.focused, w, h,
 			lipgloss.NewStyle().
 				Foreground(lipgloss.Color(t.theme.Muted)).
 				Render("No commits in history."),
 		)
 	}
 
-	visibleRows := h - 2
-	if visibleRows < 1 {
-		visibleRows = 1
-	}
+	visibleRows := max(0, h-3)
 
-	contentWidth := w - 4
-	if contentWidth < 10 {
-		contentWidth = 10
-	}
+	contentWidth := max(0, w-2)
 
 	var rows []string
 	startIdx := t.scrollOffset
@@ -139,7 +127,7 @@ func (t TreeViewModel) View() string {
 		Render(titleText)
 
 	// Combine into pane with header title
-	return borderStyle.Render(header + "\n" + innerContent)
+	return renderPane(t.theme, t.focused, w, h, header+"\n"+innerContent)
 }
 
 func (t TreeViewModel) renderCommitRow(c *git.Commit, isActive, isPast, isFuture bool, width int) string {
@@ -204,17 +192,7 @@ func (t TreeViewModel) renderCommitRow(c *git.Commit, isActive, isPast, isFuture
 
 	leftLen := lipgloss.Width(leftPart)
 	availSubj := width - leftLen - 1
-	if availSubj > 0 {
-		if len(subj) > availSubj {
-			if availSubj > 3 {
-				subj = subj[:availSubj-3] + "..."
-			} else {
-				subj = subj[:availSubj]
-			}
-		}
-	} else {
-		subj = ""
-	}
+	subj = ansi.Truncate(subj, max(0, availSubj), "…")
 
 	rowText := leftPart + subjStyle.Render(subj)
 	pad := width - lipgloss.Width(rowText)

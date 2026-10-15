@@ -1,8 +1,6 @@
 package git
 
 import (
-	"bufio"
-	"bytes"
 	"fmt"
 	"os/exec"
 	"strconv"
@@ -100,24 +98,34 @@ func (dr *DiffReader) GetCommitDiff(hash string) (*DiffData, error) {
 
 func (dr *DiffReader) fetchStats(hash string) ([]FileStat, int, int, error) {
 	// Status map (A, M, D, R)
-	statusCmd := exec.Command("git", "diff-tree", "--no-commit-id", "--name-status", "-r", "-m", "--first-parent", hash)
+	statusCmd := exec.Command("git", "diff-tree", "--root", "--no-commit-id", "--name-status", "-z", "-M", "-r", "-m", "--first-parent", hash)
 	statusCmd.Dir = dr.repoPath
-	statusOutput, _ := statusCmd.Output()
-
-	statuses := make(map[string]string)
-	sScanner := bufio.NewScanner(bytes.NewReader(statusOutput))
-	for sScanner.Scan() {
-		line := strings.TrimSpace(sScanner.Text())
-		fields := strings.Fields(line)
-		if len(fields) >= 2 {
-			statusLetter := string(fields[0][0])
-			path := fields[len(fields)-1]
-			statuses[path] = statusLetter
-		}
+	statusOutput, err := statusCmd.Output()
+	if err != nil {
+		return nil, 0, 0, fmt.Errorf("git diff-tree name-status failed: %w", err)
 	}
 
-	// Numstat map
-	cmd := exec.Command("git", "show", "--numstat", "--format=", hash)
+	statuses := make(map[string]string)
+	statusFields := strings.Split(string(statusOutput), "\x00")
+	for i := 0; i+1 < len(statusFields); {
+		status := statusFields[i]
+		path := statusFields[i+1]
+		i += 2
+		if status == "" {
+			continue
+		}
+		if status[0] == 'R' || status[0] == 'C' {
+			if i >= len(statusFields) {
+				return nil, 0, 0, fmt.Errorf("incomplete git name-status rename record")
+			}
+			path = statusFields[i]
+			i++
+		}
+		statuses[path] = status[:1]
+	}
+
+	// NUL delimiters preserve whitespace, tabs, newlines, and unquoted paths.
+	cmd := exec.Command("git", "show", "--numstat", "-z", "-M", "--format=", hash)
 	cmd.Dir = dr.repoPath
 	out, err := cmd.Output()
 	if err != nil {
@@ -128,10 +136,9 @@ func (dr *DiffReader) fetchStats(hash string) ([]FileStat, int, int, error) {
 	totalAdd := 0
 	totalDel := 0
 
-	scanner := bufio.NewScanner(bytes.NewReader(out))
-	for scanner.Scan() {
-		line := scanner.Text()
-		parts := strings.Split(line, "\t")
+	statFields := strings.Split(string(out), "\x00")
+	for i := 0; i < len(statFields); i++ {
+		parts := strings.SplitN(statFields[i], "\t", 3)
 		if len(parts) < 3 {
 			continue
 		}
@@ -139,6 +146,14 @@ func (dr *DiffReader) fetchStats(hash string) ([]FileStat, int, int, error) {
 		addStr := parts[0]
 		delStr := parts[1]
 		path := parts[2]
+		if path == "" {
+			// Rename/copy records contain separate old and new path fields.
+			if i+2 >= len(statFields) {
+				return nil, 0, 0, fmt.Errorf("incomplete git numstat rename record")
+			}
+			path = statFields[i+2]
+			i += 2
+		}
 
 		add := 0
 		del := 0
@@ -184,10 +199,12 @@ func (dr *DiffReader) fetchDiffLines(hash string) (string, []DiffLine, error) {
 
 	raw := string(out)
 	var lines []DiffLine
-	scanner := bufio.NewScanner(strings.NewReader(raw))
-
-	for scanner.Scan() {
-		text := scanner.Text()
+	if raw == "" {
+		return raw, lines, nil
+	}
+	// The patch is already buffered; iterate without Scanner's token-size limit.
+	for text := range strings.SplitSeq(strings.TrimSuffix(raw, "\n"), "\n") {
+		text = strings.TrimSuffix(text, "\r")
 		lineType := DiffLineContext
 
 		if strings.HasPrefix(text, "diff --git") ||

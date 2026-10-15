@@ -9,6 +9,7 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 )
 
 type FocusArea int
@@ -36,20 +37,23 @@ type diffLoadedMsg struct {
 	err  error
 }
 
-type tickMsg time.Time
+type tickMsg struct {
+	generation uint64
+}
 
 // AppModel is the top-level Bubble Tea state manager.
 type AppModel struct {
-	graph            *git.CommitGraph
-	diffReader       *git.DiffReader
-	currentDiff      *git.DiffData
-	currentIndex     int
-	focus            FocusArea
-	isFullScreenDiff bool
-	isPlaying        bool
-	speedIndex       int
-	themeIndex       int
-	showHelp         bool
+	graph              *git.CommitGraph
+	diffReader         *git.DiffReader
+	currentDiff        *git.DiffData
+	currentIndex       int
+	focus              FocusArea
+	isFullScreenDiff   bool
+	isPlaying          bool
+	playbackGeneration uint64
+	speedIndex         int
+	themeIndex         int
+	showHelp           bool
 
 	scrubber    ScrubberModel
 	treeView    TreeViewModel
@@ -135,8 +139,9 @@ func (m AppModel) scheduleTickCmd() tea.Cmd {
 		return nil
 	}
 	interval := Speeds[m.speedIndex].Interval
+	generation := m.playbackGeneration
 	return tea.Tick(interval, func(t time.Time) tea.Msg {
-		return tickMsg(t)
+		return tickMsg{generation: generation}
 	})
 }
 
@@ -160,7 +165,7 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tickMsg:
-		if m.isPlaying {
+		if m.isPlaying && msg.generation == m.playbackGeneration {
 			total := len(m.graph.Commits)
 			if total > 0 {
 				if m.currentIndex < total-1 {
@@ -219,6 +224,7 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, cmd
 
 		case key.Matches(msg, m.keys.TogglePlay):
+			m.playbackGeneration++ // Invalidate timers from the previous playback session.
 			m.isPlaying = !m.isPlaying
 			if m.isPlaying {
 				// If at the end, restart from beginning for a full movie experience
@@ -266,8 +272,8 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			} else {
 				m.focus = FocusTree
 			}
-			m.treeView.SetFocus(m.focus == FocusTree)
-			m.diffView.SetFocus(m.focus == FocusDiff)
+			m.treeView.SetFocus(m.focus == FocusTree && !m.isFullScreenDiff)
+			m.diffView.SetFocus(m.focus == FocusDiff || m.isFullScreenDiff)
 			return m, nil
 
 		// Scrubbing navigation
@@ -306,7 +312,7 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Batch(cmds...)
 
 		case key.Matches(msg, m.keys.Up):
-			if m.focus == FocusDiff {
+			if m.focus == FocusDiff || m.isFullScreenDiff {
 				var diffCmd tea.Cmd
 				m.diffView, diffCmd = m.diffView.Update(msg)
 				return m, diffCmd
@@ -317,7 +323,7 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Batch(cmds...)
 
 		case key.Matches(msg, m.keys.Down):
-			if m.focus == FocusDiff {
+			if m.focus == FocusDiff || m.isFullScreenDiff {
 				var diffCmd tea.Cmd
 				m.diffView, diffCmd = m.diffView.Update(msg)
 				return m, diffCmd
@@ -379,9 +385,7 @@ func (m *AppModel) updateLayoutDimensions() {
 	scrubberHeight := 5
 	footerHeight := 1
 	mainHeight := h - scrubberHeight - footerHeight
-	if mainHeight < 5 {
-		mainHeight = 5
-	}
+	mainHeight = max(0, mainHeight)
 
 	m.scrubber.SetWidth(w)
 
@@ -392,7 +396,7 @@ func (m *AppModel) updateLayoutDimensions() {
 		leftWidth := w * 45 / 100
 		rightWidth := w - leftWidth
 		if leftWidth < 25 {
-			leftWidth = 25
+			leftWidth = min(25, w)
 			rightWidth = w - leftWidth
 		}
 
@@ -403,6 +407,7 @@ func (m *AppModel) updateLayoutDimensions() {
 		if detailsHeight < 7 {
 			detailsHeight = 7
 		}
+		detailsHeight = min(detailsHeight, mainHeight)
 		diffHeight := mainHeight - detailsHeight
 
 		m.detailsView.SetSize(rightWidth, detailsHeight)
@@ -418,6 +423,9 @@ func (m AppModel) View() string {
 	}
 
 	theme := m.currentTheme()
+	if m.width < 12 || m.height < 12 {
+		return ansi.Truncate("Terminal too small; resize to continue.", m.width, "")
+	}
 
 	// 1. Scrubber Header
 	scrubberView := m.scrubber.View()
@@ -439,7 +447,7 @@ func (m AppModel) View() string {
 	footer := lipgloss.NewStyle().
 		Width(m.width).
 		Foreground(lipgloss.Color(theme.Muted)).
-		Render(footerText)
+		Render(ansi.Truncate(footerText, m.width, ""))
 
 	baseLayout := lipgloss.JoinVertical(lipgloss.Left, scrubberView, mainView, footer)
 

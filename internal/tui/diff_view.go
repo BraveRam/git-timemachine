@@ -35,16 +35,9 @@ func (dv *DiffViewModel) SetSize(w, h int) {
 	dv.width = w
 	dv.height = h
 
-	vpWidth := w - 4
-	vpHeight := h - 7 // reserve space for header, files summary, and border
-	if vpWidth < 10 {
-		vpWidth = 10
-	}
-	if vpHeight < 3 {
-		vpHeight = 3
-	}
-	dv.viewport.Width = vpWidth
-	dv.viewport.Height = vpHeight
+	dv.viewport.Width = max(0, w-2)
+	// Two border rows, the title, and the files summary precede the viewport.
+	dv.viewport.Height = max(0, h-4)
 }
 
 // SetFocus sets whether this pane has keyboard focus.
@@ -120,11 +113,8 @@ func (dv *DiffViewModel) updateContent() {
 func (dv DiffViewModel) View() string {
 	w := dv.width
 	h := dv.height
-	if w <= 0 {
-		w = 40
-	}
-	if h <= 0 {
-		h = 10
+	if w <= 0 || h <= 0 {
+		return ""
 	}
 
 	titleText := " Diff Viewer "
@@ -134,12 +124,8 @@ func (dv DiffViewModel) View() string {
 		titleText = " ● Diff Viewer [Focus: Tab / f for Fullscreen] "
 	}
 
-	borderStyle := dv.theme.BorderStyle(dv.focused || dv.isFullScreen).
-		Width(w - 2).
-		Height(h - 2)
-
 	if dv.diffData == nil {
-		return borderStyle.Render(
+		return renderPane(dv.theme, dv.focused || dv.isFullScreen, w, h,
 			lipgloss.NewStyle().
 				Foreground(lipgloss.Color(dv.theme.Muted)).
 				Render("Loading diff..."),
@@ -198,5 +184,5 @@ func (dv DiffViewModel) View() string {
 	subHeader := fmt.Sprintf("%s  [%s]", filesBar, scrollBadge)
 
 	content := fmt.Sprintf("%s\n%s\n%s", header, subHeader, dv.viewport.View())
-	return borderStyle.Render(content)
+	return renderPane(dv.theme, dv.focused || dv.isFullScreen, w, h, content)
 }

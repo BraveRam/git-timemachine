@@ -52,6 +52,17 @@ func BuildGraphRoutes(commits []*Commit) int {
 			}
 		}
 
+		// Branches converge when multiple lanes expect this same commit.
+		// Keep one node and retire every duplicate lane before rendering it.
+		for l, expectedHash := range activeLanes {
+			if l != commitLane && expectedHash == c.Hash {
+				activeLanes[l] = ""
+			}
+		}
+		for len(activeLanes) > 0 && activeLanes[len(activeLanes)-1] == "" {
+			activeLanes = activeLanes[:len(activeLanes)-1]
+		}
+
 		c.Node.Lane = commitLane
 		c.Node.LaneColor = commitLane % 8
 		if len(activeLanes) > maxLanes {
