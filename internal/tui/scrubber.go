@@ -60,7 +60,7 @@ func (s ScrubberModel) View() string {
 	titleStyle := lipgloss.NewStyle().
 		Bold(true).
 		Foreground(lipgloss.Color(s.theme.Cursor)).
-		Render("⏱ git-timemachine")
+		Render("git-timemachine")
 
 	var playBadge string
 	if s.isPlaying {
@@ -69,18 +69,18 @@ func (s ScrubberModel) View() string {
 			Background(lipgloss.Color(s.theme.Success)).
 			Foreground(lipgloss.Color(s.theme.Background)).
 			Padding(0, 1).
-			Render(fmt.Sprintf("▶ PLAYING %s", s.speedText))
+			Render(fmt.Sprintf("PLAYING %s", s.speedText))
 	} else {
 		playBadge = lipgloss.NewStyle().
 			Background(lipgloss.Color(s.theme.Muted)).
 			Foreground(lipgloss.Color(s.theme.Foreground)).
 			Padding(0, 1).
-			Render(fmt.Sprintf("⏸ PAUSED %s", s.speedText))
+			Render(fmt.Sprintf("PAUSED %s", s.speedText))
 	}
 
 	themeBadge := lipgloss.NewStyle().
 		Foreground(lipgloss.Color(s.theme.Accent)).
-		Render(fmt.Sprintf("🎨 %s", s.theme.Name))
+		Render(fmt.Sprintf("Theme: %s", s.theme.Name))
 
 	progressPercent := 0
 	if s.totalCommits > 1 {

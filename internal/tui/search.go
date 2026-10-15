@@ -136,7 +136,7 @@ func (s SearchModel) View(width int) string {
 	title := lipgloss.NewStyle().
 		Bold(true).
 		Foreground(lipgloss.Color(s.theme.Cursor)).
-		Render("🔍 Search History")
+		Render("Search History")
 
 	countText := lipgloss.NewStyle().
 		Foreground(lipgloss.Color(s.theme.Muted)).

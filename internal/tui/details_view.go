@@ -96,16 +96,16 @@ func (d DetailsViewModel) View() string {
 		if r.Type == git.RefTag {
 			refBadges = append(refBadges, lipgloss.NewStyle().
 				Foreground(lipgloss.Color(d.theme.Warning)).
-				Render("◆ "+r.Name))
+				Render("["+r.Name+"]"))
 		} else if r.Type == git.RefHead {
 			refBadges = append(refBadges, lipgloss.NewStyle().
 				Foreground(lipgloss.Color(d.theme.Danger)).
 				Bold(true).
-				Render("⚑ HEAD"))
+				Render("[HEAD]"))
 		} else if r.Type == git.RefBranch {
 			refBadges = append(refBadges, lipgloss.NewStyle().
 				Foreground(lipgloss.Color(d.theme.Success)).
-				Render(" "+r.Name))
+				Render("["+r.Name+"]"))
 		}
 	}
 

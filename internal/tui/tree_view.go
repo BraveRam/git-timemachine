@@ -166,18 +166,18 @@ func (t TreeViewModel) renderCommitRow(c *git.Commit, isActive, isPast, isFuture
 		if r.Type == git.RefTag {
 			b := lipgloss.NewStyle().
 				Foreground(lipgloss.Color(t.theme.Warning)).
-				Render("◆ " + r.Name)
+				Render("[" + r.Name + "]")
 			badges = append(badges, b)
 		} else if r.Type == git.RefHead {
 			b := lipgloss.NewStyle().
 				Foreground(lipgloss.Color(t.theme.Danger)).
 				Bold(true).
-				Render("⚑ HEAD")
+				Render("[HEAD]")
 			badges = append(badges, b)
 		} else if r.Type == git.RefBranch {
 			b := lipgloss.NewStyle().
 				Foreground(lipgloss.Color(t.theme.Success)).
-				Render(" " + r.Name)
+				Render("[" + r.Name + "]")
 			badges = append(badges, b)
 		}
 	}

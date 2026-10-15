@@ -467,7 +467,7 @@ func (m AppModel) renderHelpModal() string {
 	title := lipgloss.NewStyle().
 		Bold(true).
 		Foreground(lipgloss.Color(theme.Cursor)).
-		Render("⏱ git-timemachine — Keyboard Shortcuts")
+		Render("git-timemachine — Keyboard Shortcuts")
 
 	shortcuts := [][]string{
 		{"← / h", "Scrub backward 1 commit"},

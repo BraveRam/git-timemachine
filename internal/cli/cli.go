@@ -27,7 +27,7 @@ func Run(binName string) {
 	flag.BoolVar(versionFlag, "v", false, "Print version (shorthand)")
 
 	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, "⏱ %s - Interactive Git History Scrubber TUI (v%s)\n\n", binName, Version)
+		fmt.Fprintf(os.Stderr, "%s - Interactive Git History Scrubber TUI (v%s)\n\n", binName, Version)
 		fmt.Fprintf(os.Stderr, "Usage:\n  %s [flags] [path]\n\n", binName)
 		fmt.Fprintf(os.Stderr, "Flags:\n")
 		flag.PrintDefaults()
