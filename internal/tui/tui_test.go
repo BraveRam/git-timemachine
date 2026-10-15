@@ -9,8 +9,8 @@ import (
 )
 
 func TestThemes(t *testing.T) {
-	if len(AllThemes) != 4 {
-		t.Fatalf("expected 4 themes, got %d", len(AllThemes))
+	if len(AllThemes) != 14 {
+		t.Fatalf("expected 14 themes, got %d", len(AllThemes))
 	}
 
 	for _, th := range AllThemes {

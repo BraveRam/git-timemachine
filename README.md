@@ -26,7 +26,7 @@
   - **Right Bottom Pane**: Changed files summary (+45 -12) and scrollable syntax-highlighted unified diff.
   - **Fullscreen Diff**: Toggle full-screen code inspection with `f` or `Enter`.
 - **Zero-Lag Engine**: Piped streaming Git log reader and LRU diff caching capable of handling repositories with 10,000+ commits at 60fps.
-- **Aesthetic Themes**: Cycle between Catppuccin Mocha, Tokyo Night, Nord, and Monokai Pro with `t`.
+- **Aesthetic Themes**: Cycle through 14 palettes (3 light and 11 dark) with `t`.
 - **Instant Search**: Real-time substring commit filtering across subjects, authors, and hashes with `/`.
 
 ---
@@ -66,8 +66,9 @@ gtm
 gtm /path/to/repo
 gtm -p ../my-project
 
-# Launch with custom theme (catppuccin, tokyonight, nord, monokai)
-gtm -t tokyonight
+# Launch with a light or dark theme
+gtm -t paper
+gtm -t midnight
 ```
 
 ---
@@ -95,7 +96,7 @@ gtm -t tokyonight
 | `f` / `Enter` | Toggle fullscreen diff viewer |
 | `↑` / `k` / `↓` / `j` | Scroll active tree or diff viewport |
 | `/` | Search commits by message, author, or hash |
-| `t` | Cycle color theme (Catppuccin, Tokyo Night, Nord, Monokai) |
+| `t` | Cycle through all 14 color themes |
 | `?` | Toggle Help cheatsheet overlay |
 | `Esc` | Close search / Exit fullscreen / Dismiss help |
 | `q` / `Ctrl+C` | Exit cleanly |
@@ -111,12 +112,24 @@ hold Shift while dragging to use their native selection instead.
 
 ## Themes Included
 
-| Theme | Preview Style |
-|:---|:---|
-| **Catppuccin Mocha** | Soothing pastel palette with mauve cursor and soft rosewater accents |
-| **Tokyo Night** | Vibrant cyberpunk hues inspired by the Tokyo dusk |
-| **Nord** | Arctic-inspired, clean blue and frost hues |
-| **Monokai Pro** | High-contrast energetic yellows, cyans, and magentas |
+| Theme | CLI name | Appearance |
+|:---|:---|:---|
+| **Catppuccin Mocha** | `catppuccin` | Dark, soft pastels and mauve |
+| **Tokyo Night** | `tokyonight` | Dark, blue and purple |
+| **Nord** | `nord` | Dark, arctic blue and frost |
+| **Monokai Pro** | `monokai` | Dark, yellow and cyan |
+| **Paper White** | `paper` | White, ink text and violet accents |
+| **Arctic Light** | `arctic` | Cool white, navy and teal |
+| **Rose Quartz** | `rose` | Warm white, berry and plum |
+| **Midnight Blue** | `midnight` | Dark navy, blue and lavender |
+| **Ember** | `ember` | Dark brown, copper and gold |
+| **Forest** | `forest` | Dark evergreen, sage and mint |
+| **Cyberpunk** | `cyberpunk` | Dark violet, neon pink and cyan |
+| **Deep Ocean** | `ocean` | Dark ocean blue, turquoise and ice |
+| **Amethyst** | `amethyst` | Dark plum, lilac and periwinkle |
+| **Slate** | `slate` | Dark charcoal, silver and cool pastels |
+
+Use `gtm -t <name>` to start with a theme, or press `t` to cycle.
 
 ---
 

@@ -19,7 +19,7 @@ var Version = "1.0.0"
 func Run(binName string) {
 	var (
 		repoPathFlag = flag.String("path", ".", "Path to the git repository (default: current directory)")
-		themeFlag    = flag.String("theme", "catppuccin", "Initial theme: catppuccin, tokyonight, nord, monokai")
+		themeFlag    = flag.String("theme", "catppuccin", "Initial theme: "+strings.Join(tui.ThemeIDs(), ", "))
 		versionFlag  = flag.Bool("version", false, "Print version")
 	)
 	flag.StringVar(repoPathFlag, "p", ".", "Path to the git repository (shorthand)")
@@ -67,15 +67,8 @@ func Run(binName string) {
 		os.Exit(1)
 	}
 
-	initialTheme := tui.ThemeCatppuccinMocha
-	switch strings.ToLower(*themeFlag) {
-	case "tokyonight", "tokyo", "tokyo-night":
-		initialTheme = tui.ThemeTokyoNight
-	case "nord":
-		initialTheme = tui.ThemeNord
-	case "monokai", "monokai-pro":
-		initialTheme = tui.ThemeMonokaiPro
-	case "catppuccin", "mocha":
+	initialTheme, ok := tui.ThemeByName(*themeFlag)
+	if !ok {
 		initialTheme = tui.ThemeCatppuccinMocha
 	}
 

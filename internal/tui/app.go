@@ -418,6 +418,7 @@ func (m *AppModel) updateChildStates() {
 	speed := Speeds[m.speedIndex].Label
 	total := len(m.graph.Commits)
 
+	m.search.SetTheme(theme)
 	m.scrubber.SetState(m.currentIndex, total, c, m.isPlaying, speed, theme)
 	m.treeView.SetState(m.graph.Commits, m.currentIndex, theme)
 	m.detailsView.SetState(c, m.currentDiff, theme)
@@ -504,19 +505,19 @@ func (m AppModel) View() string {
 	// Overlay Modals
 	if m.search.IsActive() {
 		searchModal := m.search.View(m.width)
-		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, searchModal,
+		return m.themedScreen(lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, searchModal,
 			lipgloss.WithWhitespaceChars(" "),
-			lipgloss.WithWhitespaceForeground(lipgloss.Color(theme.Background)))
+			lipgloss.WithWhitespaceForeground(lipgloss.Color(theme.Background))))
 	}
 
 	if m.showHelp {
 		helpModal := m.renderHelpModal()
-		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, helpModal,
+		return m.themedScreen(lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, helpModal,
 			lipgloss.WithWhitespaceChars(" "),
-			lipgloss.WithWhitespaceForeground(lipgloss.Color(theme.Background)))
+			lipgloss.WithWhitespaceForeground(lipgloss.Color(theme.Background))))
 	}
 
-	return baseLayout
+	return m.themedScreen(baseLayout)
 }
 
 func (m AppModel) renderHelpModal() string {
@@ -545,7 +546,7 @@ func (m AppModel) renderHelpModal() string {
 		{"Mouse drag", "Select text within one pane"},
 		{"y / Ctrl+y", "Copy selection; Esc clears it"},
 		{"/", "Search & filter commits by message, author, hash"},
-		{"t", "Cycle color theme (Catppuccin, Tokyo Night, Nord, Monokai)"},
+		{"t", "Cycle through 14 color themes"},
 		{"?", "Toggle this help modal"},
 		{"q / Ctrl+C", "Quit cleanly"},
 	}
@@ -572,4 +573,19 @@ func (m AppModel) renderHelpModal() string {
 		Background(lipgloss.Color(theme.Background)).
 		Padding(1, 2).
 		Render(content)
+}
+
+// Paint the entire canvas so light themes work in dark terminals and vice versa.
+func (m AppModel) themedScreen(content string) string {
+	theme := m.currentTheme()
+	base := lipgloss.NewStyle().Foreground(lipgloss.Color(theme.Foreground)).Background(lipgloss.Color(theme.Background))
+	screen := base.Width(m.width).Height(m.height).Render(content)
+	// Child styles reset SGR attributes after colored text. Restore the canvas
+	// colors there too, otherwise light text surfaces fall back to a dark terminal.
+	colors, _, _ := strings.Cut(base.Render(" "), " ")
+	if colors != "" {
+		screen = strings.NewReplacer("\x1b[0m", "\x1b[0m"+colors, "\x1b[m", "\x1b[m"+colors).Replace(screen)
+		screen += "\x1b[0m"
+	}
+	return screen
 }

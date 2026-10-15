@@ -28,10 +28,18 @@ func NewSearchModel(theme Theme) SearchModel {
 	ti.CharLimit = 64
 	ti.Width = 40
 
-	return SearchModel{
-		input: ti,
-		theme: theme,
-	}
+	s := SearchModel{input: ti}
+	s.SetTheme(theme)
+	return s
+}
+
+// SetTheme keeps input text and cursor legible when the app changes palettes.
+func (s *SearchModel) SetTheme(theme Theme) {
+	s.theme = theme
+	s.input.TextStyle = lipgloss.NewStyle().Foreground(lipgloss.Color(theme.Foreground))
+	s.input.PromptStyle = lipgloss.NewStyle().Foreground(lipgloss.Color(theme.Accent))
+	s.input.PlaceholderStyle = lipgloss.NewStyle().Foreground(lipgloss.Color(theme.Muted))
+	s.input.Cursor.Style = lipgloss.NewStyle().Foreground(lipgloss.Color(theme.Cursor))
 }
 
 // Activate opens the search input.
