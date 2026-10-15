@@ -44,9 +44,13 @@
 
 ## 🚀 Installation
 
-### Using Go (Recommended)
+### Using Go (Installs as `gtm`)
 
 ```bash
+# Recommended: installs `gtm` binary to $GOPATH/bin
+go install github.com/BraveRam/git-timemachine/cmd/gtm@latest
+
+# Or install with the full name `git-timemachine`:
 go install github.com/BraveRam/git-timemachine/cmd/git-timemachine@latest
 ```
 
@@ -55,26 +59,26 @@ go install github.com/BraveRam/git-timemachine/cmd/git-timemachine@latest
 ```bash
 git clone https://github.com/BraveRam/git-timemachine.git
 cd git-timemachine
-go build -o git-timemachine ./cmd/git-timemachine
-sudo mv git-timemachine /usr/local/bin/
+go build -o gtm ./cmd/gtm
+sudo mv gtm /usr/local/bin/
 ```
 
 ---
 
 ## 🕹 Usage
 
-Run `git-timemachine` in any Git repository:
+Run `gtm` in any Git repository:
 
 ```bash
 # In current repo
-git-timemachine
+gtm
 
 # Specify path to a repository
-git-timemachine /path/to/repo
-git-timemachine -p ../my-project
+gtm /path/to/repo
+gtm -p ../my-project
 
 # Launch with custom theme (catppuccin, tokyonight, nord, monokai)
-git-timemachine -t tokyonight
+gtm -t tokyonight
 ```
 
 ---
@@ -108,9 +112,13 @@ git-timemachine -t tokyonight
 ```text
 git-timemachine/
 ├── cmd/
+│   ├── gtm/
+│   │   └── main.go              # Entrypoint producing `gtm` binary
 │   └── git-timemachine/
-│       └── main.go              # CLI flags, repo path resolution, Bubble Tea runner
+│       └── main.go              # Entrypoint producing `git-timemachine` binary
 ├── internal/
+│   ├── cli/
+│   │   └── cli.go               # Shared CLI flags, repo path resolution, Bubble Tea runner
 │   ├── git/
 │   │   ├── models.go            # Commit, Branch, Tag, FileDiff, CommitGraph structs
 │   │   ├── reader.go            # High-throughput streaming git log parser (<50ms for 10k+ commits)
