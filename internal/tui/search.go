@@ -149,7 +149,8 @@ func (s SearchModel) View(width int) string {
 	var previewLines []string
 	if len(s.matches) > 0 {
 		maxPreviews := 5
-		for i := 0; i < len(s.matches) && i < maxPreviews; i++ {
+		start := max(0, s.selectedIdx-maxPreviews+1)
+		for i := start; i < len(s.matches) && i < start+maxPreviews; i++ {
 			idx := s.matches[i]
 			c := s.commits[idx]
 			prefix := "  "

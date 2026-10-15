@@ -47,11 +47,8 @@ func (d *DetailsViewModel) SetState(c *git.Commit, diff *git.DiffData, theme The
 func (d DetailsViewModel) View() string {
 	w := d.width
 	h := d.height
-	if w <= 0 {
-		w = 40
-	}
-	if h <= 0 {
-		h = 10
+	if w <= 0 || h <= 0 {
+		return ""
 	}
 
 	titleText := " Commit Inspector "
@@ -59,12 +56,8 @@ func (d DetailsViewModel) View() string {
 		titleText = " ● Commit Inspector "
 	}
 
-	borderStyle := d.theme.BorderStyle(d.focused).
-		Width(w - 2).
-		Height(h - 2)
-
 	if d.commit == nil {
-		return borderStyle.Render(
+		return renderPane(d.theme, d.focused, w, h,
 			lipgloss.NewStyle().
 				Foreground(lipgloss.Color(d.theme.Muted)).
 				Render("Select a commit to view details."),
@@ -183,5 +176,5 @@ func (d DetailsViewModel) View() string {
 		Foreground(lipgloss.Color(d.theme.BorderFocus)).
 		Render(titleText)
 
-	return borderStyle.Render(header + "\n" + strings.Join(lines, "\n"))
+	return renderPane(d.theme, d.focused, w, h, header+"\n"+strings.Join(lines, "\n"))
 }
