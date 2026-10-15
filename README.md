@@ -1,17 +1,30 @@
-# git-timemachine
+<div align="center">
 
-**Interactive Git History Scrubber and Visual Timelapse TUI**
+```
+       _ _          _   _                            _     _            
+  __ _(_) |_       | |_(_)_ __ ___   ___ _ __   __ _|  ___| |__  _ __   
+ / _` | | __|______| __| | '_ ` _ \ / _ \ '_ \ / _` | / __| '_ \| '_ \  
+| (_| | | ||_______| |_| | | | | | |  __/ | | | (_| || (__| | | | | | | 
+ \__, |_|\__|       \__|_|_| |_| |_|\___|_| |_|\__,_(_)___|_| |_|_| |_| 
+ |___/                                                                  
+```
+
+# `git-timemachine`
+
+**The Interactive Git History Scrubber & Visual Timelapse TUI**
 
 [![Go Version](https://img.shields.io/badge/Go-1.22+-00ADD8?style=flat&logo=go)](https://golang.org)
 [![Built with Charm](https://img.shields.io/badge/Built%20with-Charmbracelet-F38BA8?style=flat)](https://charm.sh)
 [![License: MIT](https://img.shields.io/badge/License-MIT-A6E3A1.svg?style=flat)](LICENSE)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-89B4FA.svg?style=flat)](https://github.com/BraveRam/git-timemachine/pulls)
 
-Scrub backward and forward through Git history with a timeline slider, watch branches fork and merge with smooth terminal animations, inspect file diffs in real-time, and run a timelapse movie of repository evolution.
+*Scrub backward and forward through your Git history with a timeline slider, watch branches fork and merge with silky terminal animations, inspect file diffs in real-time, and hit `Space` to run a timelapse movie of your repo's evolution.*
 
 ---
 
 ![git-timemachine demo](demo.gif)
+
+</div>
 
 ## Highlights
 
